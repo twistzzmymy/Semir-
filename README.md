@@ -51,3 +51,41 @@ RPA逻辑：
 导购标题
 模拍主图
 质量分
+AI Studio 应用迁移说明
+
+本分支用于承载从 Google AI Studio 导出的模拍主图识别应用。
+
+应用代码位于：
+
+```text
+app/
+
+本地运行方式：
+
+cd app
+npm install
+npm run dev
+
+环境变量：
+
+GEMINI_API_KEY=你的 Gemini API Key
+
+注意：
+
+.env 文件不要提交到 GitHub。
+
+---
+
+# 十一、常见问题处理
+
+## 问题 1：`git checkout feature-modelshot-v1-20260602` 报错
+
+可能原因：
+
+本地还没有拉取远程分支。
+
+解决：
+
+```bash
+git fetch origin
+git checkout -b feature-modelshot-v1-20260602 origin/feature-modelshot-v1-20260602
