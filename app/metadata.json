@@ -1,0 +1,8 @@
+{
+  "name": "ModelShot AI - 模拍主图识别",
+  "description": "基于 Qwen-VL 大模型的电商模拍主图识别工具。支持 Excel 批量处理、进度追踪，并自动生成带结果的新表格。",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
