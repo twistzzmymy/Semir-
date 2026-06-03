@@ -5,3 +5,7 @@ build/
 .env.local
 .DS_Store
 *.log
+app/.env
+app/.env.local
+app/node_modules/
+app/dist/
