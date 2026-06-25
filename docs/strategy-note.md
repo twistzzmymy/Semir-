@@ -46,6 +46,9 @@ Implemented:
 - `download-url`
 - `download`
 - `download-images`
+- `inspect-images`
+- `download-catalog`
+- `download-by-rules`
 - `run <capability>` unified JSON protocol for AI agents
 
 Crawshrimp logic imported into reusable TS helpers:
@@ -57,12 +60,14 @@ Crawshrimp logic imported into reusable TS helpers:
 - Tmall match-buy `3` / `3-n` image-name recognition
 - new-624 `3-1` full-body and same-SKC still-life recognition
 - DeepDraw new-arrival folder locating, recursive listing, model/still SOP filtering, yq naming, and package planning
+- generic folder inspection by path/code/folder-rule, optional signed URL enrichment, plus user-defined image-pick rules
+- generic catalog batch-download planning from inspected image rows
 
 Not implemented yet:
 
 - zip packaging
 - dedicated Tmall match-buy command from Excel input
-- dedicated new-624 command from multiline SKC input
+- dedicated new-624 command from multiline SKC input, if a shorthand still becomes useful
 - dedicated DeepDraw upload command in this standalone CLI
 - upload/delete/move/rename/share/link management
 
@@ -74,8 +79,8 @@ The core architecture is now:
 
 1. Browser/session atomics: open/reuse 9222, wait for login, probe session.
 2. Semir API atomics: resolve mount, list, search, info, preview URL, download URL.
-3. Rule atomics: parse path, normalize codes, filter images, classify DeepDraw assets.
-4. Planning atomics: image download plans and DeepDraw new-arrival package plans.
+3. Rule atomics: parse path, normalize codes, filter images, classify DeepDraw assets, match user-defined folder/image rules.
+4. Planning atomics: image catalogs, catalog download plans, rule-based image download plans, and DeepDraw new-arrival package plans.
 5. Side-effect atomics: explicit local downloads only.
 
 Human scenario commands such as `download-images` should remain thin wrappers over the capability layer.

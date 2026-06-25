@@ -3,6 +3,7 @@ import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { Command } from 'commander';
 import { DEFAULT_CDP_URL, DEFAULT_LOGIN_URL, DEFAULT_MOUNT_ID, DEFAULT_URL_PREFIX } from './api.js';
+import { buildCatalogDownloadPlan, finalizeCatalogDownloadRows, type CatalogDownloadRow } from './catalog-download.js';
 import { getCapability, runCapability } from './capabilities.js';
 import { extractActionArgs, extractActionCommand } from './cli-args.js';
 import { CdpPage, probeSemirLogin } from './cdp.js';
@@ -10,9 +11,11 @@ import { SemirYunpanClient } from './client.js';
 import { downloadUrlToFile, runDownloadJobs } from './download.js';
 import { SemirCliError } from './errors.js';
 import { groupStyleResults, rankStyleResults, type CloudFile, type RankedStyleResult, type StyleGroup } from './files.js';
+import { buildImageCatalog, type ImageCatalogRow } from './image-catalog.js';
 import { buildImageDownloadPlan, finalizeImageDownloadRows, type ImageDownloadRow } from './image-plan.js';
 import { type OutputFormat, pickFields, render } from './output.js';
 import { readCapabilityInput } from './run-input.js';
+import { buildRuleImagePlan, finalizeRuleImageRows, parseImagePickRules, type RuleImageRow } from './rule-image-plan.js';
 import { normalizeCodes, toSafeFilename } from './rules.js';
 
 const program = new Command();
@@ -212,6 +215,144 @@ program.command('download-images')
     write(imageDownloadRows(finalizeImageDownloadRows(plan.rows, downloadResults)), opts.format);
   }));
 
+program.command('download-by-rules')
+  .alias('pick-images')
+  .argument('[codes...]', '款号/款色编码；也可以用 --codes 或 --codes-file')
+  .requiredOption('--cloud-path <path>', '云盘搜索范围，格式：挂载点//目录/子目录；可指向批次目录或具体款色目录')
+  .requiredOption('--rules <rules>', '选图规则，例如：全身=stem:3-1,静物=stem:{code}')
+  .option('--codes <codes>', '款号/款色编码，支持逗号、分号、换行')
+  .option('--codes-file <path>', '从文本文件读取款号/款色编码')
+  .option('-o, --output <dir>', '本地导出目录', path.resolve(process.cwd(), 'semir-yunpan-downloads'))
+  .option('-l, --limit <n>', '每个目录最多读取的文件数', '200')
+  .option('--layout <mode>', '导出结构: by_code/flat', 'by_code')
+  .option('--concurrency <n>', '下载并发数', '4')
+  .option('--dry-run', '只输出匹配与本地路径计划，不获取临时下载 URL，不落盘')
+  .description('按路径、款号和用户指定规则挑选图片并下载')
+  .action(withClient(async (client, args, opts) => {
+    const codes = await collectCodes(args, opts);
+    if (!codes.length) throw new SemirCliError('EX_USAGE', '请提供至少一个款号或款色编码', 64);
+    const rules = parseImagePickRules(stringOpt(opts, 'rules'));
+    if (!rules.length) throw new SemirCliError('EX_USAGE', '请提供至少一条选图规则，例如：全身=stem:3-1,静物=stem:{code}', 64);
+
+    const plan = await buildRuleImagePlan(client, {
+      cloudPath: stringOpt(opts, 'cloudPath') ?? '',
+      codes,
+      rules,
+      outputDir: path.resolve(stringOpt(opts, 'output') ?? 'semir-yunpan-downloads'),
+      includeDownloadUrls: !boolOpt(opts, 'dryRun'),
+      layout: stringOpt(opts, 'layout'),
+      limit: Number(stringOpt(opts, 'limit') ?? 200)
+    });
+
+    if (boolOpt(opts, 'dryRun') || !plan.jobs.length) {
+      write(ruleImageRows(plan.rows), opts.format);
+      return;
+    }
+
+    const downloadResults = await runDownloadJobs(plan.jobs.map((job) => ({
+      url: job.url,
+      destination: job.destination,
+      headers: job.headers
+    })), Number(stringOpt(opts, 'concurrency') ?? 4));
+    write(ruleImageRows(finalizeRuleImageRows(plan.rows, downloadResults)), opts.format);
+  }));
+
+program.command('inspect-images')
+  .argument('[codes...]', '款号/款色编码；也可以用 --codes 或 --codes-file')
+  .requiredOption('--cloud-path <path>', '云盘搜索范围，格式：挂载点//目录/子目录；可指向范围目录或具体款色目录')
+  .option('--folder-rule <rule>', '定位文件夹规则: name:{code}/glob:*{code}*/regex:...', 'name:{code}')
+  .option('--rules <rules>', '可选选图规则，例如：全身=3-1,静物={code}')
+  .option('--codes <codes>', '款号/款色编码，支持逗号、分号、换行')
+  .option('--codes-file <path>', '从文本文件读取款号/款色编码')
+  .option('--selected-only', '只输出命中 --rules 的图片')
+  .option('--include-download-urls', '显式输出每张图片的临时下载 URL')
+  .option('--search-limit <n>', '每个编码最多读取的搜索结果', '100')
+  .option('--list-limit <n>', '每个文件夹最多列出的文件数', '500')
+  .description('按云盘范围和款号规则定位文件夹，列出全部图片并按用户规则标记命中项')
+  .action(withClient(async (client, args, opts) => {
+    const codes = await collectCodes(args, opts);
+    if (!codes.length) throw new SemirCliError('EX_USAGE', '请提供至少一个款号或款色编码', 64);
+
+    const catalog = await buildImageCatalog(client, {
+      cloudPath: stringOpt(opts, 'cloudPath') ?? '',
+      codes,
+      folderRule: stringOpt(opts, 'folderRule'),
+      rules: stringOpt(opts, 'rules') ?? '',
+      searchLimit: Number(stringOpt(opts, 'searchLimit') ?? 100),
+      listLimit: Number(stringOpt(opts, 'listLimit') ?? 500),
+      selectedOnly: boolOpt(opts, 'selectedOnly'),
+      includeDownloadUrls: boolOpt(opts, 'includeDownloadUrls')
+    });
+    write(imageCatalogRows(catalog.rows), opts.format);
+  }));
+
+program.command('download-catalog')
+  .argument('[codes...]', '款号/款色编码；也可以用 --codes 或 --codes-file')
+  .option('--input-file <path>', '读取 inspect-images --include-download-urls -f json 输出的图片行')
+  .option('--cloud-path <path>', '云盘搜索范围，格式：挂载点//目录/子目录；未提供 --input-file 时必填')
+  .option('--folder-rule <rule>', '定位文件夹规则: name:{code}/glob:*{code}*/regex:...', 'name:{code}')
+  .option('--rules <rules>', '可选选图规则，例如：全身=3-1,静物={code}')
+  .option('--codes <codes>', '款号/款色编码，支持逗号、分号、换行')
+  .option('--codes-file <path>', '从文本文件读取款号/款色编码')
+  .option('--selected-only', '只下载命中 --rules 或 inspected rows 中 selected=true 的图片')
+  .option('-o, --output <dir>', '本地导出目录', path.resolve(process.cwd(), 'semir-yunpan-downloads'))
+  .option('--layout <mode>', '导出结构: by_code/flat', 'by_code')
+  .option('--concurrency <n>', '下载并发数', '4')
+  .option('--search-limit <n>', '每个编码最多读取的搜索结果', '100')
+  .option('--list-limit <n>', '每个文件夹最多列出的文件数', '500')
+  .description('批量下载 inspect-images 发现的图片清单')
+  .action(async (...raw: unknown[]) => {
+    const command = extractActionCommand<Command>(raw);
+    const args = extractActionArgs(raw);
+    const opts = command.optsWithGlobals<Record<string, unknown>>();
+    const outputDir = path.resolve(stringOpt(opts, 'output') ?? 'semir-yunpan-downloads');
+    const inputFile = stringOpt(opts, 'inputFile');
+    let rows: ImageCatalogRow[];
+
+    if (inputFile) {
+      rows = await readCatalogRowsFile(inputFile);
+    } else {
+      const cloudPath = stringOpt(opts, 'cloudPath');
+      if (!cloudPath) throw new SemirCliError('EX_USAGE', '请提供 --cloud-path，或用 --input-file 读取 inspect-images 的 JSON 输出', 64);
+      const codes = await collectCodes(args, opts);
+      if (!codes.length) throw new SemirCliError('EX_USAGE', '请提供至少一个款号或款色编码', 64);
+      const page = await connectPage(opts);
+      try {
+        const client = new SemirYunpanClient(page.fetchJson.bind(page));
+        const catalog = await buildImageCatalog(client, {
+          cloudPath,
+          codes,
+          folderRule: stringOpt(opts, 'folderRule'),
+          rules: stringOpt(opts, 'rules') ?? '',
+          searchLimit: Number(stringOpt(opts, 'searchLimit') ?? 100),
+          listLimit: Number(stringOpt(opts, 'listLimit') ?? 500),
+          selectedOnly: boolOpt(opts, 'selectedOnly'),
+          includeDownloadUrls: true
+        });
+        rows = catalog.rows;
+      } finally {
+        await page.close();
+      }
+    }
+
+    const plan = buildCatalogDownloadPlan(rows, {
+      outputDir,
+      selectedOnly: boolOpt(opts, 'selectedOnly'),
+      layout: stringOpt(opts, 'layout')
+    });
+    if (!plan.jobs.length) {
+      write(catalogDownloadRows(plan.rows), opts.format);
+      return;
+    }
+
+    const downloadResults = await runDownloadJobs(plan.jobs.map((job) => ({
+      url: job.url,
+      destination: job.destination,
+      headers: job.headers
+    })), Number(stringOpt(opts, 'concurrency') ?? 4));
+    write(catalogDownloadRows(finalizeCatalogDownloadRows(plan.rows, downloadResults)), opts.format);
+  });
+
 program.command('preview-url')
   .argument('<path>', '完整云盘路径')
   .option('-m, --mount <id>', '云盘库 mount_id', String(DEFAULT_MOUNT_ID))
@@ -285,6 +426,16 @@ async function collectCodes(args: string[], opts: Record<string, unknown>): Prom
   return normalizeCodes(parts.join('\n'));
 }
 
+async function readCatalogRowsFile(inputFile: string): Promise<ImageCatalogRow[]> {
+  const text = await readFile(path.resolve(inputFile), 'utf8');
+  const parsed = JSON.parse(text) as unknown;
+  if (Array.isArray(parsed)) return parsed as ImageCatalogRow[];
+  if (parsed && typeof parsed === 'object' && Array.isArray((parsed as { rows?: unknown }).rows)) {
+    return (parsed as { rows: ImageCatalogRow[] }).rows;
+  }
+  throw new SemirCliError('EX_USAGE', '--input-file 必须是 inspect-images 输出的 JSON 数组，或包含 rows 数组的对象', 64);
+}
+
 function write(data: unknown, format: unknown) {
   process.stdout.write(render(data, normalizeFormat(format)));
 }
@@ -347,6 +498,53 @@ function imageDownloadRows(rows: ImageDownloadRow[]): Record<string, unknown>[] 
     cloudPath: row.cloudPath,
     downloadStatus: row.downloadStatus,
     localFile: row.localFile,
+    note: row.note,
+    mountId: row.mountId ?? '',
+    mountName: row.mountName ?? ''
+  }));
+}
+
+function ruleImageRows(rows: RuleImageRow[]): Record<string, unknown>[] {
+  return rows.map((row) => ({
+    inputCode: row.inputCode,
+    ruleLabel: row.ruleLabel,
+    rulePattern: row.rulePattern,
+    filename: row.filename,
+    cloudPath: row.cloudPath,
+    downloadStatus: row.downloadStatus,
+    localFile: row.localFile,
+    note: row.note,
+    mountId: row.mountId ?? '',
+    mountName: row.mountName ?? ''
+  }));
+}
+
+function imageCatalogRows(rows: ImageCatalogRow[]): Record<string, unknown>[] {
+  return rows.map((row) => ({
+    inputCode: row.inputCode,
+    folderPath: row.folderPath,
+    filename: row.filename,
+    cloudPath: row.cloudPath,
+    ext: row.ext,
+    filesize: row.filesize,
+    selected: row.selected,
+    matchedRules: row.matchedRules,
+    status: row.status,
+    note: row.note,
+    downloadUrl: row.downloadUrl ?? '',
+    mountId: row.mountId ?? '',
+    mountName: row.mountName ?? ''
+  }));
+}
+
+function catalogDownloadRows(rows: CatalogDownloadRow[]): Record<string, unknown>[] {
+  return rows.map((row) => ({
+    inputCode: row.inputCode,
+    filename: row.filename,
+    cloudPath: row.cloudPath,
+    downloadStatus: row.downloadStatus,
+    localFile: row.localFile,
+    matchedRules: row.matchedRules,
     note: row.note,
     mountId: row.mountId ?? '',
     mountName: row.mountName ?? ''

@@ -1,9 +1,12 @@
 import type { CdpPage } from './cdp.js';
 import { probeSemirLogin } from './cdp.js';
+import { buildCatalogDownloadPlan } from './catalog-download.js';
 import type { SemirYunpanClient } from './client.js';
 import { runDownloadJobs } from './download.js';
 import { normalizeCloudFile } from './files.js';
+import { buildImageCatalog } from './image-catalog.js';
 import { buildImageDownloadPlan } from './image-plan.js';
+import { buildRuleImagePlan } from './rule-image-plan.js';
 import { buildShenhuiPackagePlan } from './shenhui-plan.js';
 import { classifyShenhuiAsset, normalizeShenhuiSourceTypes } from './shenhui.js';
 import { filterSearchResults, normalizeCodes, parseCloudPath } from './rules.js';
@@ -70,6 +73,22 @@ const CAPABILITIES: InternalCapabilityDefinition[] = [
       const mountName = input.mountName ? String(input.mountName) : parseCloudPath(String(input.cloudPath ?? '')).mountName;
       return await client.resolveMount(mountName);
     }
+  },
+  {
+    name: 'images.inspect',
+    description: '按云盘范围和款号规则定位文件夹，列出图片清单并按用户规则标记命中项',
+    requiresClient: true,
+    input: { cloudPath: 'string', codes: 'string|string[]', folderRule: 'string optional', rules: 'string|ImagePickRule[] optional' },
+    run: async (input, context) => await buildImageCatalog(requiredClient(context), {
+      cloudPath: String(input.cloudPath ?? ''),
+      codes: Array.isArray(input.codes) ? input.codes.map(String) : normalizeCodes(input.codes),
+      folderRule: stringOrUndefined(input.folderRule),
+      rules: Array.isArray(input.rules) ? input.rules as never : String(input.rules ?? ''),
+      searchLimit: Number(input.searchLimit ?? 100),
+      listLimit: Number(input.listLimit ?? 500),
+      selectedOnly: input.selectedOnly === true,
+      includeDownloadUrls: input.includeDownloadUrls === true
+    })
   },
   {
     name: 'files.list',
@@ -148,6 +167,31 @@ const CAPABILITIES: InternalCapabilityDefinition[] = [
       spuMatchMode: stringOrUndefined(input.spuMatchMode),
       layout: stringOrUndefined(input.layout),
       limit: Number(input.limit ?? 500)
+    })
+  },
+  {
+    name: 'downloads.plan-by-rules',
+    description: '按云盘路径、款号和用户指定图片规则生成下载计划',
+    requiresClient: true,
+    input: { cloudPath: 'string', codes: 'string|string[]', rules: 'string|ImagePickRule[]', includeDownloadUrls: 'boolean optional' },
+    run: async (input, context) => await buildRuleImagePlan(requiredClient(context), {
+      cloudPath: String(input.cloudPath ?? ''),
+      codes: Array.isArray(input.codes) ? input.codes.map(String) : normalizeCodes(input.codes),
+      rules: Array.isArray(input.rules) ? input.rules as never : String(input.rules ?? ''),
+      outputDir: String(input.outputDir ?? 'semir-yunpan-downloads'),
+      includeDownloadUrls: input.includeDownloadUrls === true,
+      layout: stringOrUndefined(input.layout),
+      limit: Number(input.limit ?? 200)
+    })
+  },
+  {
+    name: 'downloads.plan-catalog',
+    description: '把 images.inspect 输出的图片行转换成本地批量下载计划',
+    input: { rows: 'ImageCatalogRow[]', outputDir: 'string optional', selectedOnly: 'boolean optional' },
+    run: (input) => buildCatalogDownloadPlan(Array.isArray(input.rows) ? input.rows as never : [], {
+      outputDir: String(input.outputDir ?? 'semir-yunpan-downloads'),
+      selectedOnly: input.selectedOnly === true,
+      layout: stringOrUndefined(input.layout)
     })
   },
   {

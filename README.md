@@ -101,6 +101,32 @@ npm run dev -- download-images \
   --codes-file ./codes.txt \
   --dry-run \
   -f json
+
+# 按用户指定规则挑图：批次目录 + 款色 + “全身=3-1、静物=款色同名”
+npm run dev -- inspect-images \
+  --cloud-path "森马视觉//01-拍摄企划/01-服饰/00-季度所有图片/2026年/26Q3/模特/服饰/AI/6-4/6-04批次 6 套/" \
+  --codes "103526124101A-80325" \
+  --folder-rule "name:{code}" \
+  --rules "全身=3-1,静物={code}" \
+  -f table
+
+# 确认命中后，再按同一套规则生成下载计划或下载
+npm run dev -- download-by-rules \
+  --cloud-path "森马视觉//01-拍摄企划/01-服饰/00-季度所有图片/2026年/26Q3/模特/服饰/AI/6-4/6-04批次 6 套/" \
+  --codes "103526124101A-80325" \
+  --rules "全身=3-1,静物={code}" \
+  --dry-run \
+  -f table
+
+# 或者直接按探查流程批量下载；默认下载全部图片，加 --selected-only 只下载规则命中的图片
+npm run dev -- download-catalog \
+  --cloud-path "森马视觉//01-拍摄企划/01-服饰/00-季度所有图片/2026年/26Q3/模特/服饰/AI/6-4/6-04批次 6 套/" \
+  --codes "103526124101A-80325" \
+  --folder-rule "name:{code}" \
+  --rules "全身=3-1,静物={code}" \
+  --selected-only \
+  -o ./downloads \
+  -f table
 ```
 
 ## 抓虾规则
@@ -114,6 +140,62 @@ npm run dev -- download-images \
 - `--duplicate-mode first_per_stem` 默认同名/同编码只保留一张；`all` 保留全部。
 - `--spu-match-mode representative` 会为 SPU 保留一张代表款色图，并按款号命名。
 - 搭配购和 6.24 新规则的底层命名判断已沉淀在 `src/rules.ts`，后续可以继续扩成专门命令。
+
+## 通用找图与规则选图
+
+没有专用 SOP 命令时，推荐先用 `inspect-images` 做只读探查，再用 `download-catalog` 或 `download-by-rules` 下载确认后的命中项。
+
+`inspect-images` 做三件事：
+
+1. 按 `--cloud-path` 解析挂载点和搜索范围。
+2. 按 `--folder-rule` 和每个 `code` 找候选文件夹。
+3. 列出文件夹内所有图片的文件名、云盘地址、大小，并用 `--rules` 标记用户想要的图片。
+
+默认不输出临时下载 URL；如需把探查结果交给后续下载任务，显式加 `--include-download-urls`：
+
+```bash
+node dist/cli.js inspect-images \
+  --cloud-path "森马视觉//01-拍摄企划/.../6-04批次 6 套/" \
+  --codes "103526124101A-80325" \
+  --rules "全身=3-1,静物={code}" \
+  --selected-only \
+  --include-download-urls \
+  -f json > /tmp/semir-images.json
+
+node dist/cli.js download-catalog \
+  --input-file /tmp/semir-images.json \
+  -o ./downloads \
+  -f table
+```
+
+临时下载 URL 带签名和过期时间，不要写入仓库或文档。
+
+常用文件夹规则：
+
+- `name:{code}`：文件夹名等于当前款号/款色。
+- `glob:*{code}*`：文件夹名按 glob 包含当前款号/款色。
+- `regex:^.*{code}.*$`：文件夹名或路径按正则命中。
+
+常用选图规则：
+
+- `标签=3-1`：默认按文件 stem 精确匹配，可命中 `3-1.jpg`。
+- `标签=stem:{code}`：按文件 stem 匹配当前款号/款色，可命中 `103526124101A-80325.png`。
+- `标签=filename:3-1.jpg`：按完整文件名匹配。
+- `标签=glob:特写*`：按 glob 匹配文件名。
+- `标签=regex:^C23A\\d+\\.JPG$`：按正则匹配文件名。
+
+`download-by-rules` 面向“已经知道要按哪些规则下载”的场景。它不会绑定某个历史规则，而是：
+
+1. 解析 `挂载点//目录/子目录`。
+2. 如果路径已经以当前 `code` 结尾，直接列该目录；否则自动拼成 `目录/code`。
+3. 按 `--rules` 指定的规则从目录图片中挑选首个命中项。
+4. `--dry-run` 只输出计划；去掉 `--dry-run` 才获取临时下载 URL 并下载到本地。
+
+`download-catalog` 面向“先探查，再批量下载”的场景：
+
+- 带 `--cloud-path` / `--codes` 时，会内部执行同样的文件夹定位和图片清单逻辑，并下载清单图片。
+- 带 `--input-file` 时，会读取 `inspect-images --include-download-urls -f json` 的输出并下载。
+- 默认下载所有清单图片；加 `--selected-only` 只下载 `selected=true` 的图片。
 
 深绘上新图包能力沿用抓虾项目 `adapters/shenhui-new-arrival/prepare-upload-package.js` 的核心规则：
 
@@ -166,6 +248,7 @@ npm run dev -- run shenhui.plan-package --input-json '{"codes":["208226103201"],
 - `path.parse`
 - `codes.normalize`
 - `mount.resolve`
+- `images.inspect`
 - `files.list`
 - `files.search`
 - `files.info`
@@ -173,6 +256,8 @@ npm run dev -- run shenhui.plan-package --input-json '{"codes":["208226103201"],
 - `urls.preview`
 - `rules.filter-images`
 - `downloads.plan-images`
+- `downloads.plan-by-rules`
+- `downloads.plan-catalog`
 - `downloads.run`
 - `shenhui.classify-asset`
 - `shenhui.plan-package`
