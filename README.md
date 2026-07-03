@@ -1,4 +1,58 @@
-# 森马云盘 CLI
+# Semir-
+用于主ID检视及模拍主图判定的仓库
+背景：对每周上新款进行上新检视，即对相关产品（产品线群中的主ID确认文件——待各品类bu确认主ID）进行上架后商品情况检查，维度主要包括：
+基础信息：款号、主ID、次ID、上新批次、上新时间、产品季、产品线、性别、品类、货品属性
+勾选项：标题、主图logo、BO投放、产品参数准确、商品属性
+导购标题:IF(lenb([表一]Sheet1!导购标题$)>28,TURE,FALSE)
+标题：IF(lenb([表一]Sheet1!标题$)>58,TURE,FALSE)
+透明素材图：=HasPicture([表一]Sheet1!透明素材图$)
+此公式使用前需alt+F11打开VBA，插入模块粘贴：
+Function HasPicture(rng As Range) As Boolean
+    Dim pic As Picture
+    For Each pic In rng.Parent.Pictures
+        If Not Intersect(pic.TopLeftCell, rng) Is Nothing Then
+            HasPicture = True
+            Exit Function
+        End If
+    Next pic
+    HasPicture = False
+End Function
+
+模拍主图：
+判断1：1主图或3：4主图是否为模拍主图（都需要有）
+
+颜色图：IF（[表二]Sheet1!SKU规格图$=模拍图 and 产品线="服装" and 匹配结果$=TURE,TURE，FALSE）
+匹配结果：Iferror(vlookup([表二]Sheet1!商家编码,[#产品季#上市计划表]商品信息!唯一码$:规格$,#颜色列/尺码列#，0),FALSE,TURE)
+99码准确：尺码匹配为TURE
+颜色与99码都是与对应批次上市计划表商品信息进行匹配校对
+
+表一
+
+
+表二
+    
+RPA逻辑：
+主流程：
+下载产品线工作一张表：
+下载表一
+表二
+主图链接
+一张表填写公式标题公式并下拉填充
+调用流程一（模拍主图）：
+打开主图链接
+打开https://ai.studio/apps/0698cea2-81d4-4f04-a2fe-2a836feff76d
+上传文件开始识别
+下载完成匹配结果于产品线工作一张表中
+调用流程二：
+拉取ID质量分情况，若两分均为100输出TRUE，否则为FALSE
+调用流程三：
+写入钉钉多维表
+标题
+导购标题
+模拍主图
+质量分
+
+## 森马云盘 CLI
 
 面向用户和 AI agent 的森马云盘命令行客户端。它复用你已经登录的 Chrome CDP `9222` 会话，在页面上下文里调用森马云盘自己的接口，重点解决：
 
@@ -9,7 +63,7 @@
 - 深绘上新：复用抓虾“整理深绘上新图包”的款号文件夹定位、模特图/静物图 SOP 过滤、yq 命名和下载计划规则。
 - 给 agent 稳定输出：支持 `json` / `ndjson` / `csv` / `md` / `table`。
 
-## 安装与运行
+### 安装与运行
 
 ```bash
 cd semir-yunpan-cli
@@ -18,279 +72,27 @@ npm run build
 node dist/cli.js --help
 ```
 
-开发期也可以直接：
-
-```bash
-npm run dev -- style 208326133201 --limit 10 -f table
-```
-
-默认连接：
-
-- CDP: `http://127.0.0.1:9222`
-- 页面前缀: `https://fmp.semirapp.com`
-- 默认库: `mount_id=2023`（当前探查到的“巴拉营运BU-商品”）
-
-可用环境变量：
-
-```bash
-SEMIR_YUNPAN_CDP_URL=http://127.0.0.1:9222
-SEMIR_YUNPAN_URL_PREFIX=https://fmp.semirapp.com
-SEMIR_YUNPAN_LOGIN_URL=https://fmp.semirapp.com/web/index#/home/file
-SEMIR_YUNPAN_LOGIN_TIMEOUT=300
-```
-
-## 登录态
-
-CLI 默认复用 `9222` 端口的 Chrome。执行任意命令时：
-
-1. 如果 9222 里已经有森马云盘页面，会直接复用。
-2. 如果没有森马云盘页面，会在同一个 9222 浏览器打开 `SEMIR_YUNPAN_LOGIN_URL`。
-3. 如果尚未登录，会提示你在打开的页面完成登录，并轮询 `/fengcloud/1/account/mount` 直到登录态可用或超时。
-
-```bash
-# 主动打开/检查登录态
-npm run dev -- login -f json
-
-# 调整等待时间
-npm run dev -- --login-timeout 600 mounts -f table
-```
-
-## 常用命令
+### 常用命令
 
 ```bash
 # 列出可见云盘库
 npm run dev -- mounts -f table
 
-# 列当前库根目录
-npm run dev -- ls --mount 2023 -f table
-
-# 搜款号，按图包/源文件/图片规则排序
+# 搜款号
 npm run dev -- style 208326133201 --limit 20 -f table
-
-# 搜款号并按最近款号目录/图包目录分组
-npm run dev -- style 208326133201 --groups -f json
-
-# 只搜图片和设计源文件扩展名
-npm run dev -- search 208326133201 --ext image --limit 30 -f json
-
-# 限定路径搜索
-npm run dev -- search 208326133201 --path "巴拉货控/02 产品上新模块" --limit 20
-
-# 解析完整路径
-npm run dev -- info "巴拉货控/.../208326133201.jpg" -f json
-
-# 输出临时预览链接
-npm run dev -- preview-url "巴拉货控/.../208326133201.jpg" -f json
-
-# 输出临时下载链接，不自动下载
-npm run dev -- download-url "巴拉货控/.../208326133201.jpg" -f json
 
 # 下载单个文件
 npm run dev -- download "巴拉货控/.../208326133201.jpg" -o ./downloads
-
-# 抓虾同款批量搜图下载：SPU 默认匹配“款号-五位色码”图片
-npm run dev -- download-images \
-  --cloud-path "巴拉营运BU-商品//巴拉货控/02 产品上新模块/2-2 巴拉产品上新/" \
-  --codes "208226111002,208226111002-00316" \
-  -o ./downloads \
-  -f table
-
-# 只看计划，不获取临时下载 URL，不落盘
-npm run dev -- download-images \
-  --cloud-path "巴拉营运BU-商品//巴拉货控/02 产品上新模块/2-2 巴拉产品上新/" \
-  --codes-file ./codes.txt \
-  --dry-run \
-  -f json
-
-# 按用户指定规则挑图：批次目录 + 款色 + “全身=3-1、静物=款色同名”
-npm run dev -- inspect-images \
-  --cloud-path "森马视觉//01-拍摄企划/01-服饰/00-季度所有图片/2026年/26Q3/模特/服饰/AI/6-4/6-04批次 6 套/" \
-  --codes "103526124101A-80325" \
-  --folder-rule "name:{code}" \
-  --rules "全身=3-1,静物={code}" \
-  -f table
-
-# 确认命中后，再按同一套规则生成下载计划或下载
-npm run dev -- download-by-rules \
-  --cloud-path "森马视觉//01-拍摄企划/01-服饰/00-季度所有图片/2026年/26Q3/模特/服饰/AI/6-4/6-04批次 6 套/" \
-  --codes "103526124101A-80325" \
-  --rules "全身=3-1,静物={code}" \
-  --dry-run \
-  -f table
-
-# 或者直接按探查流程批量下载；默认下载全部图片，加 --selected-only 只下载规则命中的图片
-npm run dev -- download-catalog \
-  --cloud-path "森马视觉//01-拍摄企划/01-服饰/00-季度所有图片/2026年/26Q3/模特/服饰/AI/6-4/6-04批次 6 套/" \
-  --codes "103526124101A-80325" \
-  --folder-rule "name:{code}" \
-  --rules "全身=3-1,静物={code}" \
-  --selected-only \
-  -o ./downloads \
-  -f table
 ```
 
-## 抓虾规则
+### 批量下载脚本
 
-批量图片命令沿用抓虾项目 `adapters/semir-cloud-drive` 中已跑通的核心规则：
+- `batch-download.js` / `batch-download-new.js`：模拍原图批量下载（yz/o/ys）
+- `shoes-download.js`：鞋品图包批量下载（1440_1440）
+- `copy-images.js`：图片复制脚本
+- `supplement-download.js`：补充下载脚本
 
-- 云盘路径格式：`挂载点//目录/子目录`，例如 `森马视觉//01-拍摄企划/.../模拍/`。
-- 输入编码支持换行、逗号、顿号、分号分隔，并自动去重。
-- `款号` / SPU：默认只匹配文件名 stem 为 `款号-五位色码` 的图片，例如 `208226111002-00316.jpg`。
-- `款色` / SKC：只匹配文件名 stem 与完整 SKC 完全一致的图片。
-- `--duplicate-mode first_per_stem` 默认同名/同编码只保留一张；`all` 保留全部。
-- `--spu-match-mode representative` 会为 SPU 保留一张代表款色图，并按款号命名。
-- 搭配购和 6.24 新规则的底层命名判断已沉淀在 `src/rules.ts`，后续可以继续扩成专门命令。
+### SKILL
 
-## 通用找图与规则选图
-
-没有专用 SOP 命令时，推荐先用 `inspect-images` 做只读探查，再用 `download-catalog` 或 `download-by-rules` 下载确认后的命中项。
-
-`inspect-images` 做三件事：
-
-1. 按 `--cloud-path` 解析挂载点和搜索范围。
-2. 按 `--folder-rule` 和每个 `code` 找候选文件夹。
-3. 列出文件夹内所有图片的文件名、云盘地址、大小，并用 `--rules` 标记用户想要的图片。
-
-默认不输出临时下载 URL；如需把探查结果交给后续下载任务，显式加 `--include-download-urls`：
-
-```bash
-node dist/cli.js inspect-images \
-  --cloud-path "森马视觉//01-拍摄企划/.../6-04批次 6 套/" \
-  --codes "103526124101A-80325" \
-  --rules "全身=3-1,静物={code}" \
-  --selected-only \
-  --include-download-urls \
-  -f json > /tmp/semir-images.json
-
-node dist/cli.js download-catalog \
-  --input-file /tmp/semir-images.json \
-  -o ./downloads \
-  -f table
-```
-
-临时下载 URL 带签名和过期时间，不要写入仓库或文档。
-
-常用文件夹规则：
-
-- `name:{code}`：文件夹名等于当前款号/款色。
-- `glob:*{code}*`：文件夹名按 glob 包含当前款号/款色。
-- `regex:^.*{code}.*$`：文件夹名或路径按正则命中。
-
-常用选图规则：
-
-- `标签=3-1`：默认按文件 stem 精确匹配，可命中 `3-1.jpg`。
-- `标签=stem:{code}`：按文件 stem 匹配当前款号/款色，可命中 `103526124101A-80325.png`。
-- `标签=filename:3-1.jpg`：按完整文件名匹配。
-- `标签=glob:特写*`：按 glob 匹配文件名。
-- `标签=regex:^C23A\\d+\\.JPG$`：按正则匹配文件名。
-
-`download-by-rules` 面向“已经知道要按哪些规则下载”的场景。它不会绑定某个历史规则，而是：
-
-1. 解析 `挂载点//目录/子目录`。
-2. 如果路径已经以当前 `code` 结尾，直接列该目录；否则自动拼成 `目录/code`。
-3. 按 `--rules` 指定的规则从目录图片中挑选首个命中项。
-4. `--dry-run` 只输出计划；去掉 `--dry-run` 才获取临时下载 URL 并下载到本地。
-
-`download-catalog` 面向“先探查，再批量下载”的场景：
-
-- 带 `--cloud-path` / `--codes` 时，会内部执行同样的文件夹定位和图片清单逻辑，并下载清单图片。
-- 带 `--input-file` 时，会读取 `inspect-images --include-download-urls -f json` 的输出并下载。
-- 默认下载所有清单图片；加 `--selected-only` 只下载 `selected=true` 的图片。
-
-深绘上新图包能力沿用抓虾项目 `adapters/shenhui-new-arrival/prepare-upload-package.js` 的核心规则：
-
-- 从静物图/平拍路径和模特图/模拍路径分别定位款号文件夹。
-- 搜索结果优先作为款号文件夹定位器，再递归列目录，不把普通直接命中图片当成唯一来源。
-- 模特图过滤包装图、白底图、`m` 开头图、吊牌/卡头/水洗类图。
-- 静物图过滤 `.psd`、包装图、卡纸/手写类图；吊牌/水洗图命名为 `yq.*`。
-- 洗唛/吊牌 PDF 保留为 `pdf_yq` 计划项，后续可接 PDF 截图能力。
-
-## 能力协议
-
-`run <capability>` 是给 AI agent 组合调用的统一入口。输入必须是 JSON object，可用 `--input-json`、`--input-file` 或 stdin；输出统一为：
-
-```json
-{
-  "capability": "path.parse",
-  "ok": true,
-  "data": {}
-}
-```
-
-列能力：
-
-```bash
-npm run dev -- run capabilities.list -f json
-```
-
-典型原子链路：
-
-```bash
-# 1. 解析云盘路径
-npm run dev -- run path.parse --input-json '{"cloudPath":"巴拉营运BU-商品//巴拉货控/02 产品上新模块"}' -f json
-
-# 2. 解析挂载点
-npm run dev -- run mount.resolve --input-json '{"mountName":"巴拉营运BU-商品"}' -f json
-
-# 3. 搜索文件
-npm run dev -- run files.search --input-json '{"mountId":2023,"query":"208326133201","limit":20}' -f json
-
-# 4. 按 SPU/SKC 图片规则生成下载计划，不获取 URL
-npm run dev -- run downloads.plan-images --input-json '{"cloudPath":"巴拉营运BU-商品//巴拉货控/02 产品上新模块/2-2 巴拉产品上新/","codes":["208326133201"],"includeDownloadUrls":false}' -f json
-
-# 5. 整理深绘上新图包计划
-npm run dev -- run shenhui.plan-package --input-json '{"codes":["208226103201"],"sourceTypes":["still"],"stillCloudPath":"巴拉营运BU-商品//巴拉货控/02 产品上新模块/2-2 巴拉产品上新/2026年巴拉夏/平拍原图/2P/婴幼童/幼童-2.5已写/","includeDownloadUrls":false}' -f json
-```
-
-当前注册的核心能力：
-
-- `session.probe`
-- `path.parse`
-- `codes.normalize`
-- `mount.resolve`
-- `images.inspect`
-- `files.list`
-- `files.search`
-- `files.info`
-- `urls.download`
-- `urls.preview`
-- `rules.filter-images`
-- `downloads.plan-images`
-- `downloads.plan-by-rules`
-- `downloads.plan-catalog`
-- `downloads.run`
-- `shenhui.classify-asset`
-- `shenhui.plan-package`
-
-## 输出约定
-
-`search` / `ls` 输出核心列：
-
-- `filename`
-- `fullpath`
-- `isDir`
-- `ext`
-- `filesize`
-- `lastTime`
-- `lastMemberName`
-- `mountId`
-
-`style` 会额外输出：
-
-- `score`
-- `kind`: `folder` / `image` / `source` / `pdf` / `document` / `other`
-- `assetRole`: `packageImage` / `flatImage` / `modelImage` / `creativeImage` / `sourceFile` / `specSheet` 等
-
-## 安全边界
-
-默认命令只读取列表、搜索、信息和临时 URL。`download` / `download-images` 只把显式匹配到的文件下载到本地，不会上传、删除、移动、重命名、分享或提交任何外部可见变更。
-
-临时预览/下载 URL 带签名和过期时间，只在当前命令内使用或按显式 `download-url` 输出，不写入测试 fixture 或仓库文档。
-
-## 验证
-
-```bash
-npm test
-npm run typecheck
-npm run build
-```
+- `skills/semir-yunpan-image-download/`：模拍原图下载 Skill
+- `skills/semir-shoes-package-download/`：鞋品图包下载 Skill
