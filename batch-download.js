@@ -133,7 +133,13 @@ function getMoPanDirectories(code) {
       dirs.add(dir);
     });
     
-    return [...dirs];
+    // 校验目录名是否属于当前款号，防止串款
+    const validDirs = [...dirs].filter((dir) => {
+      const dirName = dir.substring(dir.lastIndexOf('/') + 1);
+      return dirName.startsWith(code);
+    });
+    
+    return validDirs;
   } catch (e) {
     return [];
   }
@@ -200,7 +206,7 @@ function main() {
   console.log(`输出路径: ${OUTPUT_BASE}`);
   console.log(`每款最多: ${MAX_PER_CODE} 张`);
   console.log(`优先级: yz > o > ys`);
-  console.log(`模式: ${dryRun ? 'Dry-run（仅测试）' : '实际下载'}`);
+  console.log(`模式: ${dryRun ? 'Dry-run（俅测试）' : '实际下载'}`);
   console.log(`款号数量: ${UNIQUE_CODES.length} 个`);
   console.log('='.repeat(60));
 
