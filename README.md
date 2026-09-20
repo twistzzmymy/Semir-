@@ -96,3 +96,13 @@ npm run dev -- download "巴拉货控/.../208326133201.jpg" -o ./downloads
 
 - `skills/semir-yunpan-image-download/`：模拍原图下载 Skill
 - `skills/semir-shoes-package-download/`：鞋品图包下载 Skill
+
+## 搜索词每日下载（生意参谋）
+
+每日从生意参谋「选词助手-引流搜索词-店外-无线」拉取昨日（T-1）全量搜索词数据，生成与页面导出一致的 xls 留档，再以 ZIP 级 XML 追加方式拼入搜索词留存主表（保留原表公式缓存，原表不动），校验后交付。
+
+- 已配置定时任务「搜索词每日更新」：每天 10:20 自动执行（幂等，T+1 数据未出自动跳过）
+- 完整流程与契约：`skills/search-term-daily/SKILL.md`、`skills/search-term-daily/cron-query.md`
+- 脚本：`fetch_drainage.py`（拉取）、`pipeline_fetch.py`（拉取+留档+JSON）、`zip_merge.py`（ZIP 级拼接主表）、`verify_all.py`（校验）
+
+> ⚠️ 拼接主表禁用 openpyxl 整表重存：原表 80,222 行起年份/月份为公式，重存会丢失公式缓存值。
