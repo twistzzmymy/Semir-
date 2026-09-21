@@ -38,11 +38,15 @@ description: "生意参谋引流搜索词每日定时下载、留档与主表拼
 | sycm-cli | `E:\巴拉巴拉\AI\sycm-cli\sycm_cli.py`（脚本通过 `SYCM_CLI_PATH` 环境变量或常量引用） |
 | Python 依赖 | `E:\巴拉巴拉\AI\sycm-cli\.python-packages`（pandas/openpyxl/xlrd/xlwt），运行需 `PYTHONPATH` 指向它 |
 | CA 证书 | `CURL_CA_BUNDLE` / `SSL_CERT_FILE` = `%USERPROFILE%\.sycm-cli\cacert.pem` |
-| 登录态 | 专用 Chrome（profile `E:\巴拉巴拉\AI\sycm-cli\.runtime\chrome-profile`）已登录生意参谋；`%LOCALAPPDATA%\sycm-cli\cdp-port` 指向其 CDP 端口。接口报 `5810 You must login system first` = 登录态失效，需重新登录，勿反复重试 |
+| 登录态 | 专用 Chrome（profile `C:\Users\smadmin\AppData\Local\sycm-cli\chrome-profile`）已登录生意参谋；`%LOCALAPPDATA%\sycm-cli\cdp-port` 指向其 CDP 端口。接口报 `5810 You must login system first` = 登录态失效，**自动调用 `auto_login.py` 通过 CDP 自动填入账号密码恢复登录**；若需滑块验证码则提示人工处理，不反复重试 |
 
 ## 执行步骤
 
 ```powershell
+# 0. （仅当接口报 5810 时）自动恢复登录态
+py auto_login.py
+#   退出码：0=已登录/登录成功，2=需人工拖滑块，3=账号密码错误，4=Chrome 未运行
+
 # 1. 拉取 T-1 数据 → 生成留档 xls + 保存 API JSON
 py pipeline_fetch.py 2026-09-20            # 缺省为昨天
 
@@ -52,6 +56,21 @@ py zip_merge.py --base "搜索词留存-更新至9.19.xlsx" --out "搜索词留�
 # 3. 校验
 py verify_all.py --base "搜索词留存-更新至9.19.xlsx" --master "搜索词留存-更新至9.20.xlsx"
 ```
+
+### 登录态自动恢复（auto_login.py）
+
+接口返回 `code=5810` 时，不再直接放弃，而是通过 CDP 在专用 Chrome 里自动完成登录：
+
+1. 读 `%LOCALAPPDATA%\sycm-cli\cdp-port` 拿 CDP 端口
+2. 查主 tab：若已在生意参谋内部页 → `ALREADY_LOGGED_IN`
+3. 若是 `login.htm` → 找到 `havanalogin` iframe → 从 `config.local.json` 读账号密码
+4. 用 native setter 填入 `fm-login-id` / `fm-login-password`（触发 input/change 事件）
+5. 点击 `.fm-submit.password-login` 登录按钮
+6. 等待 5s 后检查跳转：进入内部页 → `LOGIN_OK`；仍在登录页且出现 `nc_1_captcha_input` → `NEED_MANUAL_SLIDER`（提示人工拖滑块）；密码错 → `LOGIN_FAILED`
+
+- **凭据存储**：`scripts/config.local.json`（已加入 `.gitignore`，不进仓库），格式 `{"sycm_account": "...", "sycm_password": "..."}`
+- **滑块**：淘宝滑块无法自动过，退出码 2 时需请用户手动拖一下，再重跑 `pipeline_fetch.py`
+- **Chrome 未运行**：sycm-cli 首次调用会自动拉起专用 Chrome（`--start-minimized`），等几秒后再跑 `auto_login.py` 即可
 
 ### 留档命名与格式
 
@@ -87,12 +106,13 @@ py verify_all.py --base "搜索词留存-更新至9.19.xlsx" --master "搜索词
 
 - **幂等**：拼接前检查最新主表 C 列是否已含 T-1，已含则跳过
 - **T+1**：`recordCount=0` 时跳过该日并说明，次日自动补
-- **登录态失效**：接口报 5810 时停止，提示用户在专用 Chrome 重新登录生意参谋，不反复空跑
+- **登录态失效**：接口报 5810 时先跑 `auto_login.py` 自动恢复；若需滑块则提示人工，不反复空跑
 
 ## 相关文件
 
-- `scripts/fetch_drainage.py`：单日分页拉取（可存 JSON）
 - `scripts/pipeline_fetch.py`：拉取 → 留档 xls → API JSON（主入口）
+- `scripts/auto_login.py`：登录态自动恢复（CDP 填账号密码）
 - `scripts/zip_merge.py`：ZIP 级 XML 拼接主表
 - `scripts/verify_all.py`：留档 vs API、新增块 vs 留档校验
+- `scripts/config.local.json`：本地凭据（gitignore，不进仓库）
 - `cron-query.md`：定时任务 query 原文（自动化执行契约）
