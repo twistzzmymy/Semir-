@@ -45,3 +45,5 @@ npm run dev -- download "巴拉货控/.../208326133201.jpg" -o ./downloads
 
 - `skills/semir-yunpan-image-download/`：模拍原图下载 Skill
 - `skills/semir-shoes-package-download/`：鞋品图包下载 Skill
+- `skills/search-term-daily/`：搜索词每日查询 Skill
+- `skills/tmall-size_rank-publisher/`：天猫商品尺码排序批量提交 Skill
