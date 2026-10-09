@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>聚划算渗透率看板 · 巴拉巴拉官方旗舰</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+<style>
+  :root{
+    --text:#1A1B1C; --text2:#6B7280; --bg:#F4F3EE; --card:#FFFFFF;
+    --border:#E4E3DD; --accent:#9BBBF4; --red:#EA6668; --orange:#FAAD14;
+    --green:#52C41A; --gray:#9AA0A6;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--text);font-family:'Roboto','PingFang SC','Segoe UI',Arial,sans-serif;line-height:1.5;padding:16px;}
+  .wrap{max-width:1080px;margin:0 auto;}
+  .head{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 16px;margin-bottom:4px;}
+  h1{font-size:22px;font-weight:600;}
+  .sub{color:var(--text2);font-size:12.5px;}
+  .meta{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0 16px;}
+  .meta span{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:4px 10px;font-size:12px;color:var(--text2);}
+  .kpis{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;}
+  .kpi{flex:1 1 130px;min-width:0;background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px 14px;}
+  .kpi .lbl{font-size:12px;color:var(--text2);}
+  .kpi .num{font-size:26px;font-weight:600;margin-top:2px;}
+  .kpi .pct{font-size:12px;color:var(--text2);}
+  .kpi-main{border:2px solid var(--accent);}
+  .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;margin-bottom:16px;}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;}
+  .card h2{font-size:14.5px;font-weight:600;margin-bottom:10px;color:var(--text);}
+  .chart{width:100%;height:280px;}
+  .tip{font-size:11.5px;color:var(--text2);margin-top:6px;}
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th,td{padding:7px 8px;text-align:right;border-bottom:1px solid var(--border);}
+  th{font-weight:600;color:var(--text2);font-size:12px;background:var(--bg);}
+  td:first-child,th:first-child{text-align:left;}
+  .foot{color:var(--text2);font-size:11.5px;margin-top:14px;}
+  .supp-action{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);}
+  .supp-action-info{font-size:12px;color:var(--text2);flex:1 1 280px;}
+  .supp-action button{background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:13px;font-weight:600;cursor:pointer;}
+  .supp-action button:hover{opacity:.9;}
+  .supp-action button[disabled]{background:#C9C7C0;cursor:not-allowed;}
+  .pred-block{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:8px;margin-top:10px;}
+  .pred-item{background:var(--bg);border:1px solid var(--border);border-radius:10px;padding:8px 10px;font-size:12px;}
+  .pred-item .pl{color:var(--text2);font-size:11px;}
+  .pred-item .pv{font-size:16px;font-weight:600;margin-top:2px;}
+  .pred-item .ps{font-size:11px;color:var(--green);font-weight:600;}
+  .modal-mask{position:fixed;inset:0;background:rgba(26,27,28,.45);display:flex;align-items:center;justify-content:center;z-index:99;}
+  .modal{background:#fff;border-radius:14px;padding:20px 22px;max-width:440px;width:92%;box-shadow:0 8px 30px rgba(0,0,0,.18);}
+  .modal h3{margin-bottom:10px;}
+  .modal-info{font-size:12.5px;color:var(--text2);line-height:1.7;margin-bottom:12px;}
+  .modal-row{display:flex;align-items:center;gap:8px;margin:10px 0;font-size:13px;}
+  .modal input{flex:1;padding:7px 10px;border:1px solid var(--border);border-radius:8px;font-size:13px;}
+  .modal button{border:1px solid var(--border);background:#fff;border-radius:8px;padding:7px 14px;font-size:13px;cursor:pointer;}
+  .modal .btn-primary{background:var(--accent);color:#fff;border:none;font-weight:600;}
+  @media (max-width:480px){
+    h1{font-size:19px;}
+    .kpi{flex:1 1 45%;}
+    .chart{height:240px;}
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <h1>聚划算渗透率看板 · 巴拉巴拉官方旗舰</h1>
+    <span class="sub">渗透率 = 聚划算支付金额 ÷ 全店支付金额</span>
+  </div>
+  <div class="meta">
+    <span>统计区间：__RANGE__</span>
+    <span>数据更新：__UPDATED__</span>
+    <span>数据来源：生意参谋（sycm.taobao.com）</span>
+  </div>
+
+  <div class="kpis">
+    <div class="kpi kpi-main"><div class="lbl">最新渗透率（__LATEST_DATE__）</div><div class="num" style="color:var(--accent)">__PEN_LATEST__</div><div class="pct">环比 __PEN_CHG__</div></div>
+    <div class="kpi"><div class="lbl">全店支付金额（最新日）</div><div class="num">__SHOP_LATEST__</div><div class="pct">__SHOP_CHG__</div></div>
+    <div class="kpi"><div class="lbl">聚划算支付金额（最新日）</div><div class="num">__JHS_LATEST__</div><div class="pct">__JHS_CHG__</div></div>
+    <div class="kpi"><div class="lbl">近7日平均渗透率</div><div class="num">__PEN_7D__</div><div class="pct">近30日 __PEN_30D__</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2>渗透率趋势（近 30 天）</h2>
+      <div class="chart" id="c_pen"></div>
+      <div class="tip">渗透率 = 聚划算支付金额 / 全店支付金额；数值为每日快照。</div>
+    </div>
+    <div class="card">
+      <h2>支付金额对比（近 30 天）</h2>
+      <div class="chart" id="c_amt"></div>
+      <div class="tip">柱状：全店支付金额 vs 聚划算支付金额（单位：元）。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>近 7 天明细</h2>
+    <table>
+      <thead><tr><th>日期</th><th>全店支付金额</th><th>聚划算支付金额</th><th>渗透率</th></tr></thead>
+      <tbody>
+__TABLE_ROWS__
+      </tbody>
+    </table>
+  </div>
+
+  <div class="card">
+    <h2>聚划算可补报 · 高价值商品（__SUPP_RANGE__）</h2>
+    <table>
+      <thead><tr><th>商品ID</th><th>商品名称</th><th>7日支付金额</th><th>销售占比</th><th>环比</th><th>报入模式</th></tr></thead>
+      <tbody>
+__SUPPLEMENT_ROWS__
+      </tbody>
+    </table>
+    <div class="tip">__SUPP_NOTE__</div>
+    __SUPP_PRED__
+    <div class="supp-action">
+      <div class="supp-action-info">最新报入表格：__SUPP_FILE_NAME__（__SUPP_FILE_CNT__ 个商品，活动价=货表新版活动价，限购999，包邮）</div>
+      <button id="btnApply" onclick="openApply()" __SUPP_BTN_DISABLED__>一键报入活动</button>
+    </div>
+  </div>
+
+  <div id="applyModal" class="modal-mask" style="display:none">
+    <div class="modal">
+      <h3>一键报入 · 聚划算报名</h3>
+      <p class="modal-info">报入表格：<b>__SUPP_FILE_NAME__</b>（__SUPP_FILE_CNT__ 个商品）<br>将跳转至聚划算报名页（团 3438148835）</p>
+      <p class="modal-row">团期时间：<input id="applyDate" type="text" placeholder="例：2026-10-01 ~ 2026-10-07（可留空，在报名页内选择）"></p>
+      <p class="modal-row">
+        <button class="btn-primary" onclick="confirmApply()">确认团期并跳转报名</button>
+        <button onclick="closeApply()">取消</button>
+      </p>
+    </div>
+  </div>
+
+  <div class="foot">口径说明：全店支付金额取自生意参谋首页·数据概览（支付金额）；聚划算支付金额取自业务专区·聚划算数据中心·经营总览（bybtPayAmt）；渗透率按 聚划算/全店 计算。可补报模块 = 生意参谋7日商品（未报名聚划算）∩ 货表渠道定位"店内"；报入模式按一口价/非一口价货表区分。明细数据见同目录 CSV。</div>
+</div>
+
+<script>
+(function(){
+  var DATA = __DATA__;
+  var APPLY_URL = 'https://myseller.taobao.com/home.htm/starb/tmc-next/sale/seller/apply.htm?signRecordId=3438148835';
+  window.openApply = function(){
+    var m = document.getElementById('applyModal');
+    if (m) m.style.display = 'flex';
+  };
+  window.closeApply = function(){
+    var m = document.getElementById('applyModal');
+    if (m) m.style.display = 'none';
+  };
+  window.confirmApply = function(){
+    var d = document.getElementById('applyDate').value;
+    if (d && !window.confirm('确认团期：' + d + '\n\n将跳转聚划算报名页面（团 3438148835），是否继续？')) return;
+    window.open(APPLY_URL, '_blank');
+    closeApply();
+  };
+  if (typeof echarts === 'undefined') { console.warn('图表库加载失败，请检查网络后刷新页面。'); return; }
+  var T = {text:'#1A1B1C', sub:'#6B7280', line:'#E4E3DD'};
+  var axis = {axisLine:{lineStyle:{color:T.line}}, axisLabel:{color:T.sub,fontSize:11}, axisTick:{show:false}};
+  function mk(id, option){
+    var el = document.getElementById(id); if(!el) return;
+    var c = echarts.init(el);
+    c.setOption(option);
+    window.addEventListener('resize', function(){ c.resize(); });
+  }
+  var dates = DATA.map(function(d){return d.date;});
+  var pen = DATA.map(function(d){return d.pen;});
+  var shop = DATA.map(function(d){return d.shop;});
+  var jhs = DATA.map(function(d){return d.jhs;});
+
+  mk('c_pen', {
+    tooltip:{trigger:'axis', confine:true, valueFormatter:function(v){return (v*100).toFixed(2)+'%';}},
+    grid:{left:50,right:20,top:24,bottom:30},
+    xAxis:Object.assign({type:'category', data:dates}, axis),
+    yAxis:Object.assign({type:'value', axisLabel:{color:T.sub,fontSize:11,formatter:function(v){return (v*100).toFixed(0)+'%';}}}, axis),
+    series:[{
+      type:'line', data:pen, smooth:true, symbol:'circle', symbolSize:5,
+      lineStyle:{color:'#9BBBF4', width:2.5},
+      itemStyle:{color:'#9BBBF4'},
+      areaStyle:{color:'rgba(155,187,244,0.15)'},
+      markLine:{
+        symbol:'none',
+        label:{formatter:'30日均 {c}', color:T.sub, fontSize:11},
+        lineStyle:{color:'#FAAD14', type:'dashed'},
+        data:[{type:'average', name:'30日均'}]
+      }
+    }]
+  });
+
+  mk('c_amt', {
+    tooltip:{trigger:'axis', confine:true, valueFormatter:function(v){return v>=10000?(v/10000).toFixed(2)+'万':v;}},
+    legend:{bottom:0, textStyle:{fontSize:11, color:T.sub}, itemWidth:10, itemHeight:10},
+    grid:{left:56,right:20,top:24,bottom:34},
+    xAxis:Object.assign({type:'category', data:dates}, axis),
+    yAxis:Object.assign({type:'value', axisLabel:{color:T.sub,fontSize:11,formatter:function(v){return v/10000+'万';}}}, axis),
+    series:[
+      {name:'全店支付金额', type:'bar', data:shop, barWidth:8, itemStyle:{color:'#C9C7C0', borderRadius:[3,3,0,0]}},
+      {name:'聚划算支付金额', type:'bar', data:jhs, barWidth:8, itemStyle:{color:'#9BBBF4', borderRadius:[3,3,0,0]}}
+    ]
+  });
+})();
+</script>
+</body>
+</html>
