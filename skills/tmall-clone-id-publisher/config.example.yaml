@@ -1,0 +1,21 @@
+# tmall-clone-id-publisher 配置示例
+# 用法：python scripts/clone_id_flow.py --config config.yaml
+
+brand: 巴拉巴拉                  # 切换类目时选择的品牌
+excel: "E:\\巴拉巴拉\\ID克隆\\上新ID-9.22.xlsx"   # 上新 Excel
+start_row: 2                     # 数据起始行（跳过表头）
+end_row: 182                     # 数据结束行
+dry_run: false                   # 试跑模式（不提交）
+yes: false                       # 授权提交（外部生效动作，建议命令行传 --yes）
+
+# 同类宝贝预判
+pre_switch_threshold: 5          # 表内同货号频次 >= 此值 → 预切类目
+# 学习到的货号集合（运行时遇"同类宝贝5个"自动加入，可手动预置）
+learned_huohaos: []
+
+# 路径（一般无需改动）
+crawshrimp_dir: "E:\\巴拉知识库\\自动化\\crawshrimp-skill"
+height_sorter: "C:\\Users\\smadmin\\AppData\\Local\\Doubao\\User Data\\Default\\.doubao\\agent_mode\\workspace\\.user_skills\\tmall-height-sorter\\scripts\\tmall_height_sorter.py"
+
+# 批量节奏（后续可加）
+pause_every: 20                  # 每 N 条暂停复核（0=不暂停）

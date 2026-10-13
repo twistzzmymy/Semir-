@@ -1,0 +1,17 @@
+# 调试临时脚本与缓存，不进仓库
+tmp_*
+*_test.py
+*_probe.py
+verify_*.py
+diag_*.py
+__pycache__/
+*.pyc
+*.bak*
+*.bak_publish*
+*.py.bak*
+.DS_Store
+Thumbs.db
+
+# 运行产物（按需提交）
+*.log
+run_*.json

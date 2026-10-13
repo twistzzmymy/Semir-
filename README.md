@@ -47,3 +47,13 @@ npm run dev -- download "巴拉货控/.../208326133201.jpg" -o ./downloads
 - `skills/semir-shoes-package-download/`：鞋品图包下载 Skill
 - `skills/search-term-daily/`：搜索词每日查询 Skill
 - `skills/tmall-size_rank-publisher/`：天猫商品尺码排序批量提交 Skill
+- `skills/tmall-clone-id-publisher/`：天猫/淘宝「发布相似品」克隆ID批量上新 Skill
+
+### tmall-clone-id-publisher（克隆ID批量上新）
+
+基于 CDP 直连已登录 Chrome 的千牛/天猫发布 RPA：在售页搜索原ID → 「发布相似品」打开编辑页（copyItem）→ 规避"同类宝贝达到[5]个"（自动切换类目 + 品牌巴拉巴拉 + 货号 `-N` 递增重试）→ 图文描述旧版文本编辑（返回旧版横纵滚动 + "使用文本编辑"隐藏 radio 事件派发）→ 旧描述淘金币促销图全量清理（含 iframe 直删兜底）→ 勾选「放入仓库」→ 身高/尺码排序（内置 `deps/tmall_height_sorter.py`）→ 提交（浮动栏按钮+弹窗自动处理）→ success.htm 抓取新ID 回填 Excel。
+
+- 入口：`skills/tmall-clone-id-publisher/scripts/clone_id_flow.py`
+- 依赖：Python `websockets` + `openpyxl`；已登录淘宝卖家中心的 Chrome（`--remote-debugging-port=9222`）
+- 错误自愈：提交报错自动查询 `knowledge/error_knowledge.md` 错误学习库，命中按已验证方案重试，未命中自动记录待补方案（ERR-001~007 已固化）
+- 详见：`skills/tmall-clone-id-publisher/README.md`
